@@ -1,0 +1,164 @@
+_wandb:
+    value:
+        cli_version: 0.20.1
+        m:
+            - "1": steps_per_sec
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": _step
+              "6": []
+              "7": []
+            - "1": epoch
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": total_loss
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": primary_loss
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": repa_coeff_multiplier
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": repa_loss_1
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": learning_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+        python_version: 3.10.13
+        t:
+            "3":
+                - 2
+                - 3
+                - 7
+                - 13
+                - 16
+                - 55
+                - 61
+            "4": 3.10.13
+            "5": 0.20.1
+            "12": 0.20.1
+            "13": linux-x86_64
+beta1:
+    value: 0.9
+beta2:
+    value: 0.95
+ckpt_every:
+    value: 50000
+cloud_save_path:
+    value: /work/go67/o67002/LlamaGen_repa/result
+cls_token_num:
+    value: 1
+code_path:
+    value: /work/go67/o67002/data/imagenet_code_c2i_flip_ten_crop_384
+dataset:
+    value: imagenet_json
+dist_backend:
+    value: nccl
+dist_url:
+    value: env://
+distributed:
+    value: true
+downsample_size:
+    value: 16
+drop_path_rate:
+    value: 0
+dropout_p:
+    value: 0.1
+ema:
+    value: true
+enc_type:
+    value: dinov2-vit-b
+epochs:
+    value: 10
+global_batch_size:
+    value: 256
+global_seed:
+    value: 0
+gpt_ckpt:
+    value: null
+gpt_model:
+    value: GPT-XL
+gpt_type:
+    value: c2i
+gpu:
+    value: 0
+gradient_accumulation_steps:
+    value: 1
+image_size:
+    value: 384
+json_path:
+    value: /work/go67/o67002/data/imagenet_code_c2i_flip_ten_crop_384/imagenet_384_manifest.json
+local_rank:
+    value: 0
+log_every:
+    value: 100
+lr:
+    value: 0.0001
+max_grad_norm:
+    value: 1
+mixed_precision:
+    value: bf16
+no_compile:
+    value: false
+no_local_save:
+    value: false
+num_classes:
+    value: 1000
+num_repa_heads:
+    value: 1
+num_workers:
+    value: 48
+proj_coeff_decay_epoch:
+    value: 0
+proj_coeffs:
+    value:
+        - 2
+rank:
+    value: 0
+raw_image_path:
+    value: /work/go67/share/ImageNet/train
+report_to_wandb:
+    value: true
+resolution:
+    value: 256
+results_dir:
+    value: /work/go67/o67002/LlamaGen_repa/result_XL
+student_depth:
+    value: 24
+teacher_depth:
+    value: 24
+token_dropout_p:
+    value: 0.1
+vocab_size:
+    value: 16384
+wandb_project:
+    value: LlamaGen-REPA_3_head
+warmup_epochs:
+    value: 0
+weight_decay:
+    value: 0.05
+world_size:
+    value: 8
