@@ -16,9 +16,9 @@ This is the official PyTorch implementation of the paper **"Mirai: Autoregressiv
 
 > **Abstract:** *Autoregressive (AR) visual generators model images as sequences of discrete tokens... We propose Mirai, a general framework that injects future information into AR training...*
 
-## 📅 News
-* **[2025-XX-XX]** Code and models are released!
-* **[2025-XX-XX]** Paper is available on arXiv.
+<!-- ## 📅 News
+* **[2025-12-14]** Codes are released!
+* **[2025-XX-XX]** Paper is available on arXiv. -->
 
 
 ## 🛠️ Installation
