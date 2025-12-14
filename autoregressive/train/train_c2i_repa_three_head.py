@@ -10,12 +10,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from glob import glob
 from copy import deepcopy
-
 from torch.compiler import allow_in_graph
-
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torchvision.transforms import Normalize
-
 import os
 import sys
 # current_file_path = os.path.abspath(__file__)
@@ -27,7 +24,6 @@ import time
 import inspect
 import argparse
 import wandb
-
 from utils.logger import create_logger
 from utils.distributed import init_distributed_mode
 from utils.ema import update_ema, requires_grad
@@ -35,16 +31,12 @@ from dataset.build import build_dataset
 from autoregressive.models.gpt_repa_two_head import GPT_models 
 from torch.nn import functional as F 
 import timm 
-import math 
-
 
 @allow_in_graph
 def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
     head_losses = []
 
     z_teacher = zs_teacher_list[0]
-      
-    
     for i, z_student in enumerate(zs_tilde_list):
         if i == 0:
             offset = 0
@@ -92,16 +84,10 @@ def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
     return head_losses
 
 def get_piecewise_coeff_multiplier(current_epoch: int) -> float:
-    """
-    分段常数系数：
-      0-99  epoch: 2.0
-      100-199 epoch: 0.5
-      >=200  epoch: 0.25
-    """
-    if current_epoch < 80:
+    if current_epoch < 300:
         return 1.0
     else:
-        return 0.5
+        return 1.0
 
 def preprocess_raw_image(x):
     resolution = x.shape[-1]
@@ -109,7 +95,6 @@ def preprocess_raw_image(x):
     x = torch.nn.functional.interpolate(x, 224 * (resolution // 256), mode='bicubic')
 
     return x
-
 
 @torch.no_grad()
 def load_encoders(enc_type, device, resolution=256):
@@ -204,7 +189,6 @@ def main(args):
     logger.info(f"Training args: {args}")
     logger.info(f"Starting rank={rank}, seed={seed}, world_size={dist.get_world_size()}.")
 
-    #教师模型
     logger.info(f"Loading teacher encoder: {args.enc_type}")
     encoders, encoder_types, architectures = load_encoders(args.enc_type, device, args.resolution)
     z_dims = [encoder.embed_dim for encoder in encoders] if args.enc_type != 'None' else [0]
@@ -278,8 +262,6 @@ def main(args):
         if decay_epochs > 0:
             logger.info(f"REPA coeffs will decay over {decay_epochs} epochs, starting AFTER warmup.")
 
-    # --------------------------------
-
     ptdtype = {'none': torch.float32, 'bf16': torch.bfloat16, 'fp16': torch.float16}[args.mixed_precision]
     scaler = torch.cuda.amp.GradScaler(enabled=(args.mixed_precision == 'fp16'))
     
@@ -345,7 +327,6 @@ def main(args):
                 if 'dinov2' in encoder_types[0]:
                     teacher_features = teacher_features['x_norm_patchtokens']
 
-
                 zs_teacher_list = [teacher_features]
                 
                 repa_loss_list = calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde)
@@ -390,7 +371,6 @@ def main(args):
                 end_time = time.time()
                 steps_per_sec = log_steps / (end_time - start_time)
 
-                # 同步和记录日志
                 avg_loss = torch.tensor(running_loss / log_steps, device=device)
                 avg_loss_primary = torch.tensor(running_loss_primary / log_steps, device=device)
                 avg_loss_repa_heads = [torch.tensor(val / log_steps, device=device) for val in running_loss_repa_heads]

@@ -295,7 +295,6 @@ class Transformer(nn.Module):
         self.model_type = config.model_type
         self.cls_token_num = config.cls_token_num
         
-        # --- 从 config 对象中获取 REPA 参数 ---
         self.encoder_depth = config.encoder_depth
         self.z_dims = config.z_dims
         self.num_repa_heads = config.num_repa_heads

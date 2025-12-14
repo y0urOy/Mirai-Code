@@ -37,8 +37,6 @@ from torch.nn import functional as F
 import timm 
 import math 
 
-
-
 @allow_in_graph
 def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
     head_losses = []
@@ -235,8 +233,6 @@ def main(args):
     warmup_steps_total = args.warmup_epochs * steps_per_epoch
 
     decay_epochs = args.proj_coeff_decay_epoch if args.proj_coeff_decay_epoch > 0 else 0
-
-    warmup_in_epochs = float(args.warmup_epochs)
     
     if rank == 0:
         logger.info(f"Warmup is set to {args.warmup_epochs} epochs, which is equivalent to {warmup_steps_total} steps.")
@@ -462,7 +458,6 @@ if __name__ == "__main__":
     parser.add_argument("--report-to-wandb", action='store_true')
     parser.add_argument("--use-prev-iter-ema", action='store_true')
     parser.add_argument("--warmup-epochs", type=int, default=15)
-    
     parser.add_argument("--num-repa-heads", type=int, default=2) 
     parser.add_argument("--proj-coeff-decay-epoch", type=int, default=0,
                         help="Total steps for cosine decay of proj_coeffs. "

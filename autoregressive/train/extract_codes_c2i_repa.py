@@ -10,7 +10,6 @@ import argparse
 import json
 from tqdm import tqdm
 import datetime
-
 import os
 import sys
 
