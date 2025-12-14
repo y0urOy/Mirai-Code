@@ -63,7 +63,7 @@ torchrun --nnodes=1 --nproc_per_node=8 --node_rank=0 --master_port=12345 Mirai/a
 
 ## 📊 Evaluation & Metrics
 
-Download our pretrained models from HuggingFace and run:
+<!-- Download our pretrained models from HuggingFace and run: -->
 
 ```bash
 python3 Mirai/evaluations/c2i/evaluator.py Mirai/evaluations/c2i/VIRTUAL_imagenet256_labeled.npz Mirai/samples/GPT-B-0400000-size-256-size-256-VQ-16-topk-0-topp-1.0-temperature-1.0-cfg-2.0-seed-0.npz
