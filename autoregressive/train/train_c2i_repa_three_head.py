@@ -11,7 +11,6 @@ from torch.utils.data.distributed import DistributedSampler
 from glob import glob
 from copy import deepcopy
 
-# 关键修复点 2：导入 allow_in_graph
 from torch.compiler import allow_in_graph
 
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -19,10 +18,10 @@ from torchvision.transforms import Normalize
 
 import os
 import sys
-current_file_path = os.path.abspath(__file__)
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# current_file_path = os.path.abspath(__file__)
+# project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
+# if project_root not in sys.path:
+#     sys.path.insert(0, project_root)
 
 import time
 import inspect
@@ -33,27 +32,20 @@ from utils.logger import create_logger
 from utils.distributed import init_distributed_mode
 from utils.ema import update_ema, requires_grad
 from dataset.build import build_dataset
-from autoregressive.models.gpt_repa_two_head import GPT_models # 确保这里导入的是您 two_head 版本的模型
-from torch.nn import functional as F # <-- 确保导入
-import timm # <-- 新增 import
-import math # <-- 确保在文件顶部导入 math 库
+from autoregressive.models.gpt_repa_two_head import GPT_models 
+from torch.nn import functional as F 
+import timm 
+import math 
 
 
 @allow_in_graph
 def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
-    """
-    计算多头预测的 REPA 损失 (最终修正版)。
-    这个版本直接对整个序列进行切片，避免了 CLS 和 SEQ 分离带来的对齐错误。
-    """
     head_losses = []
-    
-    # 教师特征只有一个来源
+
     z_teacher = zs_teacher_list[0]
       
     
-    # 遍历学生模型的每一个预测头
     for i, z_student in enumerate(zs_tilde_list):
-        # --- 新增逻辑: 根据头索引 i 确定预测偏移量 offset ---
         if i == 0:
             offset = 0
         elif i == 1:
@@ -73,35 +65,24 @@ def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
         elif i == 8:
             offset = 32
         else:
-            # 为其他可能的头提供一个默认行为，例如 offset = i
-            # 或者您可以根据需要抛出错误或设置为固定值
             offset = i
             
-        # 1. 分离学生的 CLS 
         z_student = z_student[:, 1:, :]
         
-        # 2. 对 Patch 部分进行时序对齐 (使用自定义的 offset)
-        # 确定教师的目标 Patch 序列
         if z_teacher.size(1) <= offset:
-            # 如果教师 patch 序列不够长，无法移位，则此头损失为0
             head_losses.append(torch.tensor(0.0, device=z_teacher.device, dtype=z_teacher.dtype))
             continue
             
         target_teacher_patch = z_teacher[:, offset:, :]
         
-        # 截取学生 patch 序列的前面部分，以匹配长度
         common_patch_len = target_teacher_patch.size(1)
         student_prediction_patch = z_student[:, :common_patch_len, :]
         
-        
-        # # 确保拼接后的长度一致
-        # assert target_teacher_patch.size(1) == student_prediction_patch.size(1)
         if student_prediction_patch.shape[1] > target_teacher_patch.shape[1]:
             student_prediction_patch = student_prediction_patch[:, :target_teacher_patch.shape[1]]
         elif target_teacher_patch.shape[1] > student_prediction_patch.shape[1]:
             target_teacher_patch = target_teacher_patch[:, :student_prediction_patch.shape[1]]
             
-        # 4. 对拼接好的、完全对齐的张量计算总损失
         zt_norm = F.normalize(target_teacher_patch, p=2, dim=-1)
         zs_norm = F.normalize(student_prediction_patch, p=2, dim=-1)
         
@@ -124,8 +105,6 @@ def get_piecewise_coeff_multiplier(current_epoch: int) -> float:
 
 def preprocess_raw_image(x):
     resolution = x.shape[-1]
-    # x = x / 255.
-    # x = x.to(torch.float32) / 255.0
     x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
     x = torch.nn.functional.interpolate(x, 224 * (resolution // 256), mode='bicubic')
 
@@ -261,7 +240,6 @@ def main(args):
 
     optimizer = creat_optimizer(model, args.weight_decay, args.lr, (args.beta1, args.beta2), logger)
 
-        # 确保教师编码器不参与训练
     for encoder in encoders:
         encoder.eval()
         requires_grad(encoder, False)
@@ -287,17 +265,12 @@ def main(args):
     )
     logger.info(f"Dataset contains {len(dataset):,} images.")
 
-    # --- 新增：为动态计算做准备 ---
-    # `len(loader)` 能准确计算出每个rank上，一个epoch有多少个step
     steps_per_epoch = len(loader)
 
-    # 1. 新增：根据 warmup_epochs 计算出总的 warmup_steps
     warmup_steps_total = args.warmup_epochs * steps_per_epoch
 
-    # 2. 决定衰减的总epoch数 (逻辑不变)
     decay_epochs = args.proj_coeff_decay_epoch if args.proj_coeff_decay_epoch > 0 else 0
 
-    # 3. 辅助函数需要的 warmup 进度现在可以直接使用参数 (逻辑简化)
     warmup_in_epochs = float(args.warmup_epochs)
     
     if rank == 0:
@@ -340,9 +313,6 @@ def main(args):
         logger.info("Compiling the model... (may take several minutes)")
         model = torch.compile(model)
     
-    # DDP包装：find_unused_parameters=True 是保证多头模型正确运行的安全设置。
-    # PyTorch可能会发出一个性能警告，但在确定所有头始终有梯度之前，建议保留此设置并忽略该警告。
-    # model = DDP(model, device_ids=[args.gpu], find_unused_parameters=True)
     model = DDP(model, device_ids=[args.gpu])
 
     model.train()
@@ -369,7 +339,6 @@ def main(args):
             with torch.cuda.amp.autocast(dtype=ptdtype):  
                 _, zs_tilde, primary_loss = model(cond_idx=c_indices, idx=z_indices[:,:-1], targets=z_indices)
 
-            # 无论是否在 warmup 阶段，都计算 REPA loss，但在 warmup 阶段让其结果为0或不生效
             if train_steps >= warmup_steps_total:
                 processed_image = preprocess_raw_image(raw_image)
                 teacher_features = encoders[0].forward_features(processed_image)
@@ -380,37 +349,21 @@ def main(args):
                 zs_teacher_list = [teacher_features]
                 
                 repa_loss_list = calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde)
-                # --- 新增：计算当前的余弦退火系数 ---
-                current_epoch_progress = epoch + (batch_idx / steps_per_epoch)
-
-                # --- 2. 修改这里的函数调用 ---
-                # 原来的 warmup_epoch_progress 来自于一个除法计算
-                # decay_multiplier = get_cosine_decay_multiplier_by_epoch(
-                #     current_epoch_progress=current_epoch_progress,
-                #     warmup_epoch_progress=warmup_in_epochs, # warmup_in_epochs 现在直接等于 args.warmup_epochs
-                #     total_decay_epochs=decay_epochs
-                # )
-                # current_proj_coeffs = [c * decay_multiplier for c in args.proj_coeffs]
 
                 coeff_mult = get_piecewise_coeff_multiplier(epoch)
                 current_proj_coeffs = [c * coeff_mult for c in args.proj_coeffs]
-                # ------------------------------------
 
                 total_repa_loss = 0
                 for i in range(args.num_repa_heads):
-                    # 使用动态计算的系数
                     total_repa_loss += repa_loss_list[i] * current_proj_coeffs[i]
 
                 loss = primary_loss + total_repa_loss
             else:
-                # 在 warmup 阶段，创建一个假的 repa_loss 来确保计算图连接
-                # 这个 loss 的值是 0，但它连接了 zs_tilde，从而确保了梯度的反向传播
                 fake_repa_loss = 0.0
                 for z in zs_tilde:
-                    fake_repa_loss += (z * 0).sum() # 乘以0，值是0，但计算图是连接的
+                    fake_repa_loss += (z * 0).sum() 
                     
                 loss = primary_loss + fake_repa_loss
-                # 也可以保留 repa_loss_list 用于日志记录
                 repa_loss_list = [torch.tensor(0.0, device=device) for _ in range(args.num_repa_heads)]
 
             scaler.scale(loss).backward()
@@ -504,8 +457,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # ... 您原有的所有 parser.add_argument(...) 代码都保持不变 ...
-    # 我只列出需要确保存在的几个关键参数
     parser.add_argument("--code-path", type=str, required=True)
     parser.add_argument("--cloud-save-path", type=str, required=True)
     parser.add_argument("--no-local-save", action='store_true')
@@ -538,18 +489,16 @@ if __name__ == "__main__":
     parser.add_argument("--mixed-precision", type=str, default='bf16', choices=["none", "fp16", "bf16"])
     parser.add_argument("--student-depth", type=int, default=8)
     parser.add_argument("--teacher-depth", type=int, default=8)
-    parser.add_argument("--dataset", type=str, required=True) # 确保dataset参数存在
+    parser.add_argument("--dataset", type=str, required=True) 
     parser.add_argument("--raw-image-path", type=str, required=True)
     parser.add_argument("--proj-coeffs", type=float, nargs='+', default=[0.25, 0.25])
     parser.add_argument("--json-path", type=str, required=True)
-    parser.add_argument("--wandb-project", type=str, default="LlamaGen-REPA_3_head")
+    parser.add_argument("--wandb-project", type=str, default="Mirai-I")
     parser.add_argument("--report-to-wandb", action='store_true')
-    # parser.add_argument("--use-prev-iter-ema", action='store_true')
-    # parser.add_argument("--warmup-steps", type=int, default=75000)
     parser.add_argument("--resolution", type=int, choices=[256, 512], default=256)
     parser.add_argument("--warmup-epochs", type=int, default=15)
     parser.add_argument("--enc-type", type=str, default='dinov2-vit-b', help="Type of teacher encoder for REPA.")
-    parser.add_argument("--num-repa-heads", type=int, default=2) # 确保有这个参数
+    parser.add_argument("--num-repa-heads", type=int, default=2) 
     parser.add_argument("--proj-coeff-decay-epoch", type=int, default=0,
                         help="Total steps for cosine decay of proj_coeffs. "
                              "Decay starts after warmup. If <= 0, no decay is applied.")

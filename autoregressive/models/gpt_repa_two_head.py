@@ -466,23 +466,6 @@ class Transformer(nn.Module):
             if (i + 1) == self.encoder_depth:
                 zs_tilde = h
                 break
-
-        # # output layers
-        # h = self.norm(h)
-        # logits = self.output(h).float()
-        
-        # if self.training:
-        #     logits = logits[:, self.cls_token_num - 1:].contiguous()
-
-        # # if we are given some desired targets also calculate the loss
-        # loss = None
-        # if valid is not None:
-        #     loss_all = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), reduction='none')
-        #     valid_all = valid[:,None].repeat(1, targets.shape[1]).view(-1)
-        #     loss = (loss_all * valid_all).sum() / max(valid_all.sum(), 1)
-        # elif targets is not None:
-        #     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
-
         return  zs_tilde
 
 

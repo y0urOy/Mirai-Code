@@ -1,6 +1,3 @@
-#
-# autoregressive/train/extract_codes_c2i_repa.py (最终正确版本)
-#
 import torch
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -17,7 +14,7 @@ import datetime
 import os
 import sys
 
-# --- 路径设置 ---
+
 try:
     current_file_path = os.path.abspath(__file__)
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
@@ -32,7 +29,6 @@ from dataset.build import build_dataset
 from tokenizer.tokenizer_image.vq_model import VQ_models
 
 def main(args):
-    # DDP 初始化
     assert torch.cuda.is_available(), "Training currently requires at least one GPU."
     if not args.debug:
         timeout = datetime.timedelta(hours=2)
@@ -46,7 +42,6 @@ def main(args):
     else:
         device, rank, args.world_size = 'cuda', 0, 1
     
-    # 路径设置
     codes_dir = os.path.join(args.code_path, f'{args.dataset}{args.image_size}_codes')
     labels_dir = os.path.join(args.code_path, f'{args.dataset}{args.image_size}_labels')
     final_json_path = os.path.join(args.code_path, f"{args.dataset}_{args.image_size}_manifest.json")
@@ -55,7 +50,6 @@ def main(args):
         os.makedirs(codes_dir, exist_ok=True)
         os.makedirs(labels_dir, exist_ok=True)
 
-    # 模型和数据加载
     vq_model = VQ_models[args.vq_model](codebook_size=args.codebook_size, codebook_embed_dim=args.codebook_embed_dim).to(device)
     vq_model.eval()
     checkpoint = torch.load(args.vq_ckpt, map_location="cpu")
@@ -81,15 +75,12 @@ def main(args):
     sampler = DistributedSampler(dataset, num_replicas=dist.get_world_size(), rank=rank, shuffle=False, seed=args.global_seed) if not args.debug else None
     loader = DataLoader(dataset, batch_size=1, shuffle=False, sampler=sampler, num_workers=args.num_workers, pin_memory=True, drop_last=False)
 
-    # 增量写入逻辑
     tmp_manifest_path = f"/tmp/manifest_rank_{rank}.jsonl"
     with open(tmp_manifest_path, 'w') as f_manifest:
         total = 0
         pbar = tqdm(loader) if rank == 0 else loader
         
-        # ✅ 核心修复：现在直接从 loader 接收 image_path
         for x, y, image_paths in pbar:
-            # 因为 batch_size=1，所以直接取第一个路径
             image_path = image_paths[0]
 
             x = x.to(device)
@@ -112,7 +103,6 @@ def main(args):
             label_path = os.path.join(labels_dir, f"{train_steps}.npy")
             np.save(label_path, label_np)
             
-            # ✅ 现在 image_path 是正确的，可以直接使用
             sample_entry = {
                 "image_path": os.path.abspath(image_path),
                 "code_path": os.path.abspath(code_path),
@@ -131,7 +121,6 @@ def main(args):
     
     print(f"Rank {rank} finished processing and saved temporary manifest to {tmp_manifest_path}")
 
-    # 同步并由主进程合并
     if not args.debug:
         dist.barrier()
         if rank == 0:
@@ -155,7 +144,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # ... (您的 argparse 参数定义保持不变) ...
     parser.add_argument("--data-path", type=str, required=True)
     parser.add_argument("--code-path", type=str, required=True, help="保存 codes/labels 和 json 的最终根目录")
     parser.add_argument("--vq-model", type=str, choices=list(VQ_models.keys()), default="VQ-16")
