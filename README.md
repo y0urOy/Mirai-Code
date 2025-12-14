@@ -3,7 +3,7 @@
 <div align="center">
 
 [![arXiv](https://img.shields.io/badge/arXiv-25xx.xxxxx-b31b1b.svg)](https://arxiv.org/abs/25xx.xxxxx)
-[![Project Page](https://img.shields.io/badge/Project-Website-green)](https://yourusername.github.io/Mirai-Project/)
+[![Project Page](https://img.shields.io/badge/Project-Website-green)](https://y0uroy.github.io/Mirai/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 </div>
@@ -14,7 +14,9 @@
 
 This is the official PyTorch implementation of the paper **"Mirai: Autoregressive Visual Generation Needs Foresight"**.
 
-> **Abstract:** *Autoregressive (AR) visual generators model images as sequences of discrete tokens... We propose Mirai, a general framework that injects future information into AR training...*
+> Our study highlights that visual autoregressive models need foresight.
+
+<!-- > **Abstract:** *Autoregressive (AR) visual generators model images as sequences of discrete tokens... We propose Mirai, a general framework that injects future information into AR training...* -->
 
 <!-- ## 📅 News
 * **[2025-12-14]** Codes are released!
