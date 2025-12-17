@@ -117,6 +117,7 @@ torchrun --nnodes=1 --nproc_per_node=8  --node_rank=0 --master_addr=127.0.0.1 --
 
 ```bash
 torchrun --nnodes=1 --nproc_per_node=8 --node_rank=0 --master_port=12345 \   
+  autoregressive/sample/sample_c2i_ddp.py \
   --vq-ckpt pretrained_models/vq_ds16_c2i.pt \
   --gpt-ckpt results/001-GPT-B/checkpoints/0400000.pt \
   --gpt-model GPT-B \

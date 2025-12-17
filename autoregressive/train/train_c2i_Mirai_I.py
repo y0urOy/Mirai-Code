@@ -32,7 +32,7 @@ from torch.nn import functional as F
 import timm 
 
 @allow_in_graph
-def alculate_foresight_loss(zs_teacher_list, zs_tilde_list):
+def calculate_foresight_loss(zs_teacher_list, zs_tilde_list):
     head_losses = []
 
     z_teacher = zs_teacher_list[0]
@@ -326,7 +326,7 @@ def main(args):
 
                 zs_teacher_list = [teacher_features]
                 
-                foresight_loss_list = alculate_foresight_loss(zs_teacher_list, zs_tilde)
+                foresight_loss_list = calculate_foresight_loss(zs_teacher_list, zs_tilde)
 
                 coeff_mult = get_piecewise_coeff_multiplier(epoch)
                 current_proj_coeffs = [c * coeff_mult for c in args.proj_coeffs]
