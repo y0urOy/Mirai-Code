@@ -36,8 +36,9 @@ pip install -r requirements.txt
 ```bash
 mkdir pretrained_models
 cd pretrained_models
-Download [vq_ds16_c2i.pt](https://huggingface.co/FoundationVision/LlamaGen/resolve/main/vq_ds16_c2i.pt) 
 ```
+Download [vq_ds16_c2i.pt](https://huggingface.co/FoundationVision/LlamaGen/resolve/main/vq_ds16_c2i.pt) 
+
 
 
 ## 🧠 Dataset and preprocessing
