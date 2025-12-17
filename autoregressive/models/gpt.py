@@ -13,7 +13,6 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from utils.drop_path import DropPath
-from dataclasses import dataclass, field
 
 
 def find_multiple(n: int, k: int):
@@ -49,29 +48,6 @@ class ModelArgs:
     block_size: int = 256
     max_batch_size: int = 32
     max_seq_len: int = 2048
-
-    z_dims: List[int] = field(default_factory=lambda: [768])
-    encoder_depth: int = 8
-    projector_dim: int = 2048
-
-    num_repa_heads: int = 1
-
-def mean_flat(x):
-    """
-    Helper function to take the mean over all non-batch dimensions.
-    (Copied from REPA's loss.py for convenience)
-    """
-    return torch.mean(x, dim=list(range(1, len(x.size()))))
-
-def build_mlp(hidden_size, projector_dim, z_dim):
-    return nn.Sequential(
-                nn.Linear(hidden_size, projector_dim),
-                nn.SiLU(),
-                nn.Linear(projector_dim, projector_dim),
-                nn.SiLU(),
-                nn.Linear(projector_dim, z_dim),
-            )
-
 
 
 #################################################################################
@@ -282,10 +258,7 @@ class TransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(
-        self, 
-        config: ModelArgs,
-    ):
+    def __init__(self, config: ModelArgs):
         super().__init__()
         self.config = config
         self.vocab_size = config.vocab_size
@@ -294,11 +267,6 @@ class Transformer(nn.Module):
         self.num_classes = config.num_classes
         self.model_type = config.model_type
         self.cls_token_num = config.cls_token_num
-        
-        self.encoder_depth = config.encoder_depth
-        self.z_dims = config.z_dims
-        self.num_repa_heads = config.num_repa_heads
-
         if self.model_type == 'c2i':
             self.cls_embedding = LabelEmbedder(config.num_classes, config.dim, config.class_dropout_prob)
         elif self.model_type == 't2i':
@@ -313,12 +281,6 @@ class Transformer(nn.Module):
         self.layers = torch.nn.ModuleList()
         for layer_id in range(config.n_layer):
             self.layers.append(TransformerBlock(config, dpr[layer_id]))
-
-        z_dim = self.z_dims[0]
-        self.projectors = nn.ModuleList([
-            build_mlp(config.dim, config.projector_dim, z_dim) 
-            for _ in range(self.num_repa_heads)
-        ])
 
         # output layer
         self.norm = RMSNorm(config.dim, eps=config.norm_eps)
@@ -375,7 +337,6 @@ class Transformer(nn.Module):
         targets: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         valid: Optional[torch.Tensor] = None,
-        ema: bool = False,
     ):
         if idx is not None and cond_idx is not None: # training or naive inference
             cond_embeddings = self.cls_embedding(cond_idx, train=self.training)[:,:self.cls_token_num]
@@ -394,19 +355,14 @@ class Transformer(nn.Module):
             h = self.tok_dropout(token_embeddings)
             self.freqs_cis = self.freqs_cis
         
-        if input_pos is None:
+        if self.training:
             freqs_cis = self.freqs_cis[:token_embeddings.shape[1]]
-
         else:
             freqs_cis = self.freqs_cis[input_pos]
-
-        N, T, D = h.shape
         # transformer blocks
-        for i, layer in enumerate(self.layers):
+        for layer in self.layers:
             h = layer(h, freqs_cis, input_pos, mask)
-            if (i + 1) == self.encoder_depth:
-                zs_tilde = [projector(h.reshape(-1, D)).reshape(N, T, -1) for projector in self.projectors] # 特征对齐
-
+        
         # output layers
         h = self.norm(h)
         logits = self.output(h).float()
@@ -423,50 +379,7 @@ class Transformer(nn.Module):
         elif targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-        return logits, zs_tilde, loss 
-    
-    def forward_ema(
-        self, 
-        idx: torch.Tensor, 
-        cond_idx: torch.Tensor,  # cond_idx_or_embed
-        input_pos:  Optional[torch.Tensor] = None, 
-        targets: Optional[torch.Tensor] = None,
-        mask: Optional[torch.Tensor] = None,
-        valid: Optional[torch.Tensor] = None,
-        ema: bool = False,
-    ):
-        if idx is not None and cond_idx is not None: # training or naive inference
-            cond_embeddings = self.cls_embedding(cond_idx, train=self.training)[:,:self.cls_token_num]
-            token_embeddings = self.tok_embeddings(idx)
-            token_embeddings = torch.cat((cond_embeddings, token_embeddings), dim=1)
-            h = self.tok_dropout(token_embeddings)
-            self.freqs_cis = self.freqs_cis.to(h.device)
-        else:
-            if cond_idx is not None: # prefill in inference
-                token_embeddings = self.cls_embedding(cond_idx, train=self.training)[:,:self.cls_token_num]
-            else: # decode_n_tokens(kv cache) in inference
-                token_embeddings = self.tok_embeddings(idx)
-            
-            bs = token_embeddings.shape[0]
-            mask = self.causal_mask[:bs, None, input_pos]
-            h = self.tok_dropout(token_embeddings)
-            self.freqs_cis = self.freqs_cis
-        
-        if input_pos is None:
-            freqs_cis = self.freqs_cis[:token_embeddings.shape[1]]
-
-        else:
-            freqs_cis = self.freqs_cis[input_pos]
-
-        N, T, D = h.shape
-        # transformer blocks
-        for i, layer in enumerate(self.layers):
-            h = layer(h, freqs_cis, input_pos, mask)
-            if (i + 1) == self.encoder_depth:
-                zs_tilde = h
-                break
-        return  zs_tilde
-
+        return logits, loss
 
 
     def get_fsdp_wrap_module_list(self) -> List[nn.Module]:

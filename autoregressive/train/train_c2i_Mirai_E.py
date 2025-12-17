@@ -32,13 +32,13 @@ from utils.logger import create_logger
 from utils.distributed import init_distributed_mode
 from utils.ema import update_ema, requires_grad
 from dataset.build import build_dataset
-from autoregressive.models.gpt_repa_two_head import GPT_models 
+from autoregressive.models.Mirai import GPT_models 
 from torch.nn import functional as F 
 import timm 
 import math 
 
 @allow_in_graph
-def calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde_list):
+def calculate_foresight_loss(zs_teacher_list, zs_tilde_list):
     head_losses = []
     
     z_teacher_full = zs_teacher_list[0]
@@ -178,7 +178,7 @@ def main(args):
             token_dropout_p=args.token_dropout_p,
             encoder_depth=args.teacher_depth,
             z_dims=[768],
-            num_repa_heads=args.num_repa_heads
+            num_heads=args.num_heads
         ).to(device)
         ema_teacher.eval()
         requires_grad(ema_teacher, False)
@@ -196,7 +196,7 @@ def main(args):
         token_dropout_p=args.token_dropout_p,
         encoder_depth=args.student_depth,
         z_dims=[768],
-        num_repa_heads=args.num_repa_heads
+        num_heads=args.num_heads
     ).to(device)
     logger.info(f"GPT Parameters: {sum(p.numel() for p in model.parameters()):,}")
 
@@ -236,9 +236,7 @@ def main(args):
     
     if rank == 0:
         logger.info(f"Warmup is set to {args.warmup_epochs} epochs, which is equivalent to {warmup_steps_total} steps.")
-        if decay_epochs > 0:
-            logger.info(f"REPA coeffs will decay over {decay_epochs} epochs, starting AFTER warmup.")
-
+        
     # --------------------------------
 
     ptdtype = {'none': torch.float32, 'bf16': torch.bfloat16, 'fp16': torch.float16}[args.mixed_precision]
@@ -290,7 +288,7 @@ def main(args):
     
     log_steps = 0
     running_loss = 0
-    running_loss_repa_heads = [0.0] * args.num_repa_heads
+    running_loss_foresight = [0.0] * args.num_heads
     running_loss_primary = 0
     start_time = time.time()
 
@@ -312,24 +310,24 @@ def main(args):
                     teacher_zs = ema_teacher.forward_ema(cond_idx=c_indices, idx=z_indices[:,:-1], targets=None)
                     zs_teacher_list = [teacher_zs]
                 
-                repa_loss_list = calculate_repa_loss_multi_head_corrected(zs_teacher_list, zs_tilde)
+                foresight_loss_list = calculate_foresight_loss(zs_teacher_list, zs_tilde)
 
                 coeff_mult = get_piecewise_coeff_multiplier(epoch)
                 current_proj_coeffs = [c * coeff_mult for c in args.proj_coeffs]
 
 
-                total_repa_loss = 0
-                for i in range(args.num_repa_heads):
-                    total_repa_loss += repa_loss_list[i] * current_proj_coeffs[i]
+                total_foresight_loss = 0
+                for i in range(args.num_heads):
+                    total_foresight_loss += foresight_loss_list[i] * current_proj_coeffs[i]
 
-                loss = primary_loss + total_repa_loss
+                loss = primary_loss + total_foresight_loss
             else:
-                fake_repa_loss = 0.0
+                fake_foresight_loss = 0.0
                 for z in zs_tilde:
-                    fake_repa_loss += (z * 0).sum() 
+                    fake_foresight_loss += (z * 0).sum() 
                     
-                loss = primary_loss + fake_repa_loss
-                repa_loss_list = [torch.tensor(0.0, device=device) for _ in range(args.num_repa_heads)]
+                loss = primary_loss + fake_foresight_loss
+                foresight_loss_list = [torch.tensor(0.0, device=device) for _ in range(args.num_heads)]
 
             scaler.scale(loss).backward()
             if args.max_grad_norm != 0.0:
@@ -345,8 +343,8 @@ def main(args):
                     ema_teacher.load_state_dict(ema.state_dict())
 
             running_loss += loss.item()
-            for i in range(args.num_repa_heads):
-                running_loss_repa_heads[i] += repa_loss_list[i].item()
+            for i in range(args.num_heads):
+                running_loss_foresight[i] += foresight_loss_list[i].item()
             running_loss_primary += primary_loss.item()
             log_steps += 1
             train_steps += 1
@@ -358,16 +356,16 @@ def main(args):
 
                 avg_loss = torch.tensor(running_loss / log_steps, device=device)
                 avg_loss_primary = torch.tensor(running_loss_primary / log_steps, device=device)
-                avg_loss_repa_heads = [torch.tensor(val / log_steps, device=device) for val in running_loss_repa_heads]
+                avg_loss_foresight_heads = [torch.tensor(val / log_steps, device=device) for val in running_loss_foresight]
 
                 dist.all_reduce(avg_loss, op=dist.ReduceOp.SUM)
                 dist.all_reduce(avg_loss_primary, op=dist.ReduceOp.SUM)
-                for i in range(args.num_repa_heads):
-                    dist.all_reduce(avg_loss_repa_heads[i], op=dist.ReduceOp.SUM)
+                for i in range(args.num_heads):
+                    dist.all_reduce(avg_loss_foresight_heads[i], op=dist.ReduceOp.SUM)
                 
                 avg_loss = avg_loss.item() / dist.get_world_size()
                 avg_loss_primary = avg_loss_primary.item() / dist.get_world_size()
-                avg_loss_repa_heads = [val.item() / dist.get_world_size() for val in avg_loss_repa_heads]
+                avg_loss_foresight_heads = [val.item() / dist.get_world_size() for val in avg_loss_foresight_heads]
 
                 log_msg = f"(step={train_steps:07d}) Train Loss: {avg_loss:.4f}, Primary Loss: {avg_loss_primary:.4f}, "
                 wandb_log = {
@@ -377,10 +375,10 @@ def main(args):
                     "epoch": epoch,
                     "learning_rate": optimizer.param_groups[0]['lr']
                 }   
-                wandb_log["repa_coeff_multiplier"] = get_piecewise_coeff_multiplier(epoch)
-                for i in range(args.num_repa_heads):
-                    log_msg += f"Repa Loss_{i+1}: {avg_loss_repa_heads[i]:.4f}, "
-                    wandb_log[f"repa_loss_{i+1}"] = avg_loss_repa_heads[i]
+                wandb_log["foresight_coeff_multiplier"] = get_piecewise_coeff_multiplier(epoch)
+                for i in range(args.num_heads):
+                    log_msg += f"Foresight Loss_{i+1}: {avg_loss_foresight_heads[i]:.4f}, "
+                    wandb_log[f"foresight_loss_{i+1}"] = avg_loss_foresight_heads[i]
                 log_msg += f"Train Steps/Sec: {steps_per_sec:.2f}"
                 logger.info(log_msg)
 
@@ -388,7 +386,7 @@ def main(args):
                     wandb.log(wandb_log, step=train_steps)
                 
                 running_loss = 0
-                running_loss_repa_heads = [0.0] * args.num_repa_heads
+                running_loss_foresight = [0.0] * args.num_heads
                 running_loss_primary = 0
                 log_steps = 0
                 start_time = time.time()
@@ -458,7 +456,7 @@ if __name__ == "__main__":
     parser.add_argument("--report-to-wandb", action='store_true')
     parser.add_argument("--use-prev-iter-ema", action='store_true')
     parser.add_argument("--warmup-epochs", type=int, default=15)
-    parser.add_argument("--num-repa-heads", type=int, default=2) 
+    parser.add_argument("--num-heads", type=int, default=2) 
     parser.add_argument("--proj-coeff-decay-epoch", type=int, default=0,
                         help="Total steps for cosine decay of proj_coeffs. "
                              "Decay starts after warmup. If <= 0, no decay is applied.")

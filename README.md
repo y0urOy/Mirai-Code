@@ -28,15 +28,30 @@ This is the official PyTorch implementation of the paper **"Mirai: Autoregressiv
 ```bash
 conda create -n mirai python=3.9
 conda activate mirai
+cd mirai
 pip install -r requirements.txt
 ```
+## ⬇️ Download
+
+```bash
+mkdir pretrained_models
+cd pretrained_models
+Download [vq_ds16_c2i.pt](https://huggingface.co/FoundationVision/LlamaGen/resolve/main/vq_ds16_c2i.pt) 
+```
+
 
 ## 🧠 Dataset and preprocessing
 
 We mainly on ImageNet 256x256:
 
 ```bash
-bash Mirai/autoregressive/extract_codes_c2i_repa.sh --vq-ckpt Mirai/pretrained_models/vq_ds16_c2i.pt --data-path /ImageNet/train --code-path /imagenet_code_c2i_flip_ten_crop --ten-crop --crop-range 1.1 --image-size 256
+python autoregressive/train/extract_codes.py \
+  --vq-ckpt pretrained_models/vq_ds16_c2i.pt \
+  --data-path ImageNet/train \
+  --code-path imagenet_code_c2i_flip_ten_crop \
+  --ten-crop \
+  --crop-range 1.1 \
+  --image-size 256
 ```
 
 ## 🚀 Training
@@ -44,13 +59,56 @@ bash Mirai/autoregressive/extract_codes_c2i_repa.sh --vq-ckpt Mirai/pretrained_m
 To train Mirai-I on ImageNet 256x256:
 
 ```bash
-torchrun --nnodes=1 --nproc_per_node=8    --node_rank=0 --master_addr=127.0.0.1 --master_port=12345    Mirai/autoregressive/train/train_c2i_repa_three_head.py    --gpt-model="GPT-B"     --image-size=256     --downsample-size=16  --resolution 256   --global-batch-size=256    --lr=1e-4     --epochs=300     --ema     --results-dir=""     --cloud-save-path=""     --dataset="imagenet_json"    --code-path="/imagenet_code_c2i_flip_ten_crop"   --raw-image-path="/ImageNet/train"   --json-path "/imagenet_code_c2i_flip_ten_crop/imagenet_256_manifest.json"  --teacher-depth=8   --student-depth=8    --enc-type="dinov2-vit-b"  --report-to-wandb  --proj-coeffs 2 --warmup-epochs 0  --num-repa-heads=1  --ckpt-every 100000 
+torchrun --nnodes=1 --nproc_per_node=8    --node_rank=0 --master_addr=127.0.0.1 --master_port=12345 \  
+  autoregressive/train/train_c2i_Mirai_I.py \
+  --gpt-model="GPT-B" \
+  --image-size=256 \
+  --downsample-size=16 \
+  --resolution 256 \
+  --global-batch-size=256 \
+  --lr=1e-4 \
+  --epochs=300 \
+  --ema \
+  --results-dir="" \
+  --cloud-save-path="results_cloud" \
+  --dataset="imagenet_json" \
+  --code-path="imagenet_code_c2i_flip_ten_crop" \
+  --raw-image-path="/ImageNet/train" \
+  --json-path "imagenet_code_c2i_flip_ten_crop/imagenet_256_manifest.json" \
+  --teacher-depth=8 \
+  --student-depth=8 \
+  --enc-type="dinov2-vit-b" \
+  --report-to-wandb \
+  --proj-coeffs 2 \
+  --warmup-epochs 0 \
+  --num-heads=1 \
+  --ckpt-every 100000
 ```
 
 To train Mirai-E on ImageNet 256x256:
 
 ```bash
-torchrun --nnodes=1 --nproc_per_node=8  --node_rank=0 --master_addr=127.0.0.1 --master_port=12345   Mirai/autoregressive/train/train_c2i_repa_three_head_self.py    --gpt-model="GPT-B"     --image-size=256     --downsample-size=16     --global-batch-size=256     --lr=1e-4     --epochs=80     --ema     --results-dir="results"     --cloud-save-path=""     --dataset="imagenet_code"    --code-path="imagenet_code_c2i_flip_ten_crop"      --teacher-depth=8   --student-depth=8     --report-to-wandb  --proj-coeffs 2 2 2 --use-prev-iter-ema --warmup-epochs 15  --num-repa-heads=3 --ckpt-every 100000   
+torchrun --nnodes=1 --nproc_per_node=8  --node_rank=0 --master_addr=127.0.0.1 --master_port=12345 \   
+  autoregressive/train/train_c2i_Mirai_E.py \
+  --gpt-model="GPT-B" \
+  --image-size=256 \
+  --downsample-size=16 \
+  --global-batch-size=256 \
+  --lr=1e-4 \
+  --epochs=80 \
+  --ema \
+  --results-dir="results" \
+  --cloud-save-path="results_cloud" \
+  --dataset="imagenet_code" \
+  --code-path="imagenet_code_c2i_flip_ten_crop" \
+  --teacher-depth=8 \
+  --student-depth=8 \
+  --report-to-wandb \
+  --proj-coeffs 2 2 2 \
+  --use-prev-iter-ema \
+  --warmup-epochs 15 \
+  --num-heads=3 \
+  --ckpt-every 100000
 ```
 
 ## ⚡ Inference / Sampling
@@ -58,15 +116,24 @@ torchrun --nnodes=1 --nproc_per_node=8  --node_rank=0 --master_addr=127.0.0.1 --
 <!-- Download our pretrained models from HuggingFace and run: -->
 
 ```bash
-torchrun --nnodes=1 --nproc_per_node=8 --node_rank=0 --master_port=12345 Mirai/autoregressive/sample/sample_c2i_ddp.py --vq-ckpt Mirai/pretrained_models/vq_ds16_c2i.pt  --gpt-ckpt  results/001-GPT-B/checkpoints/0400000.pt --gpt-model GPT-B --image-size 256 --image-size-eval 256 --cfg-scale 2 --ema
+torchrun --nnodes=1 --nproc_per_node=8 --node_rank=0 --master_port=12345 \   
+  --vq-ckpt pretrained_models/vq_ds16_c2i.pt \
+  --gpt-ckpt results/001-GPT-B/checkpoints/0400000.pt \
+  --gpt-model GPT-B \
+  --image-size 256 \
+  --image-size-eval 256 \
+  --cfg-scale 2 \
+  --ema
 ```
 
 ## 📊 Evaluation & Metrics
-
+Before evaluation, please refer [evaluation readme](evaluations/README.md) to install required packages. 
 <!-- Download our pretrained models from HuggingFace and run: -->
 
 ```bash
-python3 Mirai/evaluations/c2i/evaluator.py Mirai/evaluations/c2i/VIRTUAL_imagenet256_labeled.npz Mirai/samples/GPT-B-0400000-size-256-size-256-VQ-16-topk-0-topp-1.0-temperature-1.0-cfg-2.0-seed-0.npz
+python3 evaluations/evaluator.py \
+  evaluations/c2i/VIRTUAL_imagenet256_labeled.npz \
+  samples/GPT-B-0400000-size-256-size-256-VQ-16-topk-0-topp-1.0-temperature-1.0-cfg-2.0-seed-0.npz
 ```
 
 ## 🎓 Citation
