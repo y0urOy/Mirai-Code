@@ -145,7 +145,6 @@ If you find our work helpful, please cite:
 @article{mirai2025,
   title={Mirai: Autoregressive Visual Generation Needs Foresight},
   author={Anonymous Authors},
-  # journal={CVPR Submission},
   year={2026}
 }
 ```
