@@ -141,7 +141,7 @@ python3 evaluations/evaluator.py \
 ## 🎓 Citation
 If you find our work helpful, please cite:
 
-
+```bash
 @misc{yu2026miraiautoregressivevisualgeneration,
       title={Mirai: Autoregressive Visual Generation Needs Foresight}, 
       author={Yonghao Yu and Lang Huang and Zerun Wang and Runyi Li and Toshihiko Yamasaki},
@@ -151,6 +151,7 @@ If you find our work helpful, please cite:
       primaryClass={cs.CV},
       url={https://arxiv.org/abs/2601.14671}, 
 }
+```
 
 ## 🎓 Citation
 🙏 Acknowledgements
