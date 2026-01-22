@@ -141,13 +141,17 @@ python3 evaluations/evaluator.py \
 ## 🎓 Citation
 If you find our work helpful, please cite:
 
-```bash
-@article{mirai2025,
-  title={Mirai: Autoregressive Visual Generation Needs Foresight},
-  author={Anonymous Authors},
-  year={2026}
+
+@misc{yu2026miraiautoregressivevisualgeneration,
+      title={Mirai: Autoregressive Visual Generation Needs Foresight}, 
+      author={Yonghao Yu and Lang Huang and Zerun Wang and Runyi Li and Toshihiko Yamasaki},
+      year={2026},
+      eprint={2601.14671},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2601.14671}, 
 }
-```
+
 ## 🎓 Citation
 🙏 Acknowledgements
 This codebase is built upon [LlamaGen](https://github.com/FoundationVision/LlamaGen). We thank the authors for their open-source contribution.
