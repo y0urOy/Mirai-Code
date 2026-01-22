@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![arXiv](https://img.shields.io/badge/arXiv-25xx.xxxxx-b31b1b.svg)](https://arxiv.org/abs/25xx.xxxxx)
+[![arXiv](https://img.shields.io/badge/arXiv-2601.14671-b31b1b.svg)](https://arxiv.org/abs/2601.14671)
 [![Project Page](https://img.shields.io/badge/Project-Website-green)](https://y0uroy.github.io/Mirai/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
